@@ -35,6 +35,14 @@ The opening counterparty share is **0%**. The opening issuer tax is **28%**, the
 
 Without the tax, today’s AUC would be NZ$2,116,800 / $1,200,000. A 20% counterparty share on top of the 28% tax raises today’s AUC to NZ$3,675,000 / $2,083,333.33. The chart includes the vertical line for 29 September 2026.
 
+## Hosted site
+
+The dashboard is published with GitHub Pages from the static export in `out/`:
+
+https://willremor.github.io/financial-liability-ticking-time-bomb/
+
+A push to `main` builds the site and deploys it. The project path is applied only for that build.
+
 ## Run locally
 
 ```bash
