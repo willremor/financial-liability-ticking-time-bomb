@@ -13,7 +13,7 @@ import {
   XAxis,
   YAxis,
 } from "recharts"
-import { custody, fuse, grid, ink, paper } from "@/lib/colors"
+import { brale, custody, fuse, grid, ink, otherTech, paper } from "@/lib/colors"
 import { formatAxis, formatMoney, type Currency } from "@/lib/money"
 import type { ScheduleRow } from "@/lib/projection"
 
@@ -28,6 +28,8 @@ type ChartPoint = ScheduleRow & {
   incentiveUsd: number
   incentiveNzd: number
   shortfallNzd: number
+  netRevenue: number
+  sharedRevenue: number
 }
 
 function subscribeReducedMotion(onStoreChange: () => void) {
@@ -119,7 +121,7 @@ function ChartTooltip({
           </dd>
         </div>
         <div className="flex justify-between gap-6 border-t border-border pt-1.5">
-          <dt>Cumulative net yield</dt>
+          <dt>NewMoney net revenue</dt>
           <dd className="text-right font-mono">
             {formatMoney(point.keptNzd, "NZD")}
             <span className="block text-muted-foreground">{formatMoney(point.keptUsd, "USD")}</span>
@@ -133,7 +135,7 @@ function ChartTooltip({
           </dd>
         </div>
         <div className="flex justify-between gap-6">
-          <dt>Cumulative yield shared</dt>
+          <dt>Shared revenue</dt>
           <dd className="text-right font-mono">
             {formatMoney(point.incentiveNzd, "NZD")}
             <span className="block text-muted-foreground">{formatMoney(point.incentiveUsd, "USD")}</span>
@@ -159,7 +161,7 @@ export function AucChart({
       <div className="overflow-x-auto">
         <div className="h-[420px] min-w-[680px]">
           <ResponsiveContainer width="100%" height="100%">
-            <ComposedChart data={points} margin={{ top: 28, right: 12, left: 4, bottom: 8 }}>
+            <ComposedChart data={points} margin={{ top: 28, right: 8, left: 4, bottom: 8 }}>
               <CartesianGrid vertical={false} stroke={grid} />
               <ReferenceArea x1={firstLabel} x2="Now" fill={fuse} fillOpacity={0.07} strokeOpacity={0} />
               <XAxis
@@ -171,6 +173,17 @@ export function AucChart({
                 height={64}
               />
               <YAxis
+                yAxisId="auc"
+                tickFormatter={(value: number) => formatAxis(value, currency)}
+                width={currency === "NZD" ? 76 : 64}
+                tickLine={false}
+                axisLine={false}
+                tick={{ fill: "#6b645b", fontSize: 11 }}
+                domain={[0, "auto"]}
+              />
+              <YAxis
+                yAxisId="revenue"
+                orientation="right"
                 tickFormatter={(value: number) => formatAxis(value, currency)}
                 width={currency === "NZD" ? 76 : 64}
                 tickLine={false}
@@ -188,6 +201,7 @@ export function AucChart({
                 )}
               />
               <Area
+                yAxisId="auc"
                 dataKey="auc"
                 name="Required AUC"
                 fill={custody}
@@ -196,6 +210,7 @@ export function AucChart({
                 isAnimationActive={!reduceMotion}
               />
               <Line
+                yAxisId="auc"
                 dataKey="auc"
                 name="Required AUC"
                 stroke={ink}
@@ -204,7 +219,29 @@ export function AucChart({
                 activeDot={{ r: 5, fill: custody }}
                 isAnimationActive={!reduceMotion}
               />
+              <Line
+                yAxisId="revenue"
+                dataKey="netRevenue"
+                name="NewMoney net revenue"
+                stroke={brale}
+                strokeWidth={2.25}
+                dot={{ r: 3, fill: brale, stroke: paper, strokeWidth: 1 }}
+                activeDot={{ r: 5, fill: brale }}
+                isAnimationActive={!reduceMotion}
+              />
+              <Line
+                yAxisId="revenue"
+                dataKey="sharedRevenue"
+                name="Shared revenue"
+                stroke={otherTech}
+                strokeWidth={2.25}
+                strokeDasharray="5 4"
+                dot={{ r: 3, fill: otherTech, stroke: paper, strokeWidth: 1 }}
+                activeDot={{ r: 5, fill: otherTech }}
+                isAnimationActive={!reduceMotion}
+              />
               <ReferenceLine
+                yAxisId="auc"
                 x="Now"
                 stroke={fuse}
                 strokeWidth={2}
@@ -223,7 +260,18 @@ export function AucChart({
       <ul className="mt-4 flex flex-wrap gap-x-5 gap-y-2 text-sm text-muted-foreground">
         <li className="inline-flex items-center gap-2">
           <span className="inline-block h-3 w-4 rounded-[3px]" style={{ backgroundColor: custody, opacity: 0.35 }} />
-          Required stablecoin AUC
+          Required AUC, left axis
+        </li>
+        <li className="inline-flex items-center gap-2">
+          <span className="inline-block h-0.5 w-4" style={{ backgroundColor: brale }} />
+          NewMoney net revenue, right axis
+        </li>
+        <li className="inline-flex items-center gap-2">
+          <span
+            className="inline-block h-0.5 w-4"
+            style={{ backgroundImage: `repeating-linear-gradient(90deg, ${otherTech} 0 4px, transparent 4px 7px)` }}
+          />
+          Shared revenue, right axis
         </li>
         <li className="inline-flex items-center gap-2">
           <span className="inline-block h-4 w-0.5 bg-[#b4331a]" /> Now · 29 Sep 2026

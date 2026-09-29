@@ -74,6 +74,8 @@ export function AucSection({
           incentiveNzd: null,
           shortfallNzd: null,
           auc: 0,
+          netRevenue: null,
+          sharedRevenue: null,
         }
       }
       const monthsElapsed = yieldMonthsElapsed(row.isoDate, row.phase)
@@ -100,6 +102,8 @@ export function AucSection({
         incentiveNzd: splitNzd.incentive,
         shortfallNzd: row.totalCumulativeUsd * nzdPerUsd,
         auc: currency === "NZD" ? aucNzd : aucUsd,
+        netRevenue: currency === "NZD" ? splitNzd.retained : splitUsd.retained,
+        sharedRevenue: currency === "NZD" ? splitNzd.incentive : splitUsd.incentive,
       }
     })
   }, [counterpartyShare, currency, issuerTax, nzdPerUsd, schedule, yieldPa])
@@ -114,7 +118,9 @@ export function AucSection({
       row.taxNzd == null ||
       row.incentiveUsd == null ||
       row.incentiveNzd == null ||
-      row.shortfallNzd == null
+      row.shortfallNzd == null ||
+      row.netRevenue == null ||
+      row.sharedRevenue == null
     ) {
       return []
     }
@@ -130,6 +136,8 @@ export function AucSection({
         incentiveUsd: row.incentiveUsd,
         incentiveNzd: row.incentiveNzd,
         shortfallNzd: row.shortfallNzd,
+        netRevenue: row.netRevenue,
+        sharedRevenue: row.sharedRevenue,
       },
     ]
   })
