@@ -121,7 +121,7 @@ function ChartTooltip({
           </dd>
         </div>
         <div className="flex justify-between gap-6 border-t border-border pt-1.5">
-          <dt>NewMoney net revenue</dt>
+          <dt>Cumulative net yield</dt>
           <dd className="text-right font-mono">
             {formatMoney(point.keptNzd, "NZD")}
             <span className="block text-muted-foreground">{formatMoney(point.keptUsd, "USD")}</span>
@@ -135,7 +135,7 @@ function ChartTooltip({
           </dd>
         </div>
         <div className="flex justify-between gap-6">
-          <dt>Shared revenue</dt>
+          <dt>Cumulative yield shared</dt>
           <dd className="text-right font-mono">
             {formatMoney(point.incentiveNzd, "NZD")}
             <span className="block text-muted-foreground">{formatMoney(point.incentiveUsd, "USD")}</span>
@@ -222,7 +222,7 @@ export function AucChart({
               <Line
                 yAxisId="revenue"
                 dataKey="netRevenue"
-                name="NewMoney net revenue"
+                name="Cumulative net yield"
                 stroke={brale}
                 strokeWidth={2.25}
                 dot={{ r: 3, fill: brale, stroke: paper, strokeWidth: 1 }}
@@ -232,7 +232,7 @@ export function AucChart({
               <Line
                 yAxisId="revenue"
                 dataKey="sharedRevenue"
-                name="Shared revenue"
+                name="Cumulative yield shared"
                 stroke={otherTech}
                 strokeWidth={2.25}
                 strokeDasharray="5 4"
@@ -264,14 +264,14 @@ export function AucChart({
         </li>
         <li className="inline-flex items-center gap-2">
           <span className="inline-block h-0.5 w-4" style={{ backgroundColor: brale }} />
-          NewMoney net revenue, right axis
+          Cumulative net yield, right axis
         </li>
         <li className="inline-flex items-center gap-2">
           <span
             className="inline-block h-0.5 w-4"
             style={{ backgroundImage: `repeating-linear-gradient(90deg, ${otherTech} 0 4px, transparent 4px 7px)` }}
           />
-          Shared revenue, right axis
+          Cumulative yield shared, right axis
         </li>
         <li className="inline-flex items-center gap-2">
           <span className="inline-block h-4 w-0.5 bg-[#b4331a]" /> Now · 29 Sep 2026
