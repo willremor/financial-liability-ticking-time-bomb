@@ -19,18 +19,18 @@ NZD figures use a mid-market spot of **1 USD = 1.7640 NZD** on 29 September 2026
 
 ## Stablecoin assets under custody
 
-NZD stablecoin balances earn **2.5% per year**, accrued as one twelfth each month with no compounding. A share of that yield can be paid to counterparties. NewMoney keeps the rest, and the custody balance is sized on the yield it keeps:
+NZD stablecoin balances earn **2.5% per year**, accrued as one twelfth each month with no compounding. For each month, required custody is the balance whose **cumulative retained yield so far equals the shortfall outstanding that month**:
 
-`AUC = shortfall ÷ (2.5% × (1 − counterparty share))`
+`AUC = existing shortfall ÷ (2.5% × (1 − counterparty share) × months elapsed / 12)`
 
-The opening counterparty share is **0%**, so the figures below match the full yield. At a 20% share, today’s AUC rises from NZ$352,800 to NZ$441,000.
+August 2026 is month 1. Today is still month 2. 1 September 2027 is month 14. NewMoney’s cumulative yield equals the existing shortfall. Counterparties’ cumulative yield is their share of the gross.
 
-| Capital required | Rule at a 0% share | Today | 1 Sep 2027 |
-| --- | --- | ---: | ---: |
-| AUC to match the shortfall | cumulative shortfall ÷ 2.5% | NZ$352,800 / $200,000 | NZ$2,723,616 / $1,544,000 |
-| AUC to pay the monthly stack | $2,800 ÷ (2.5% / 12) | NZ$2,370,816 / $1,344,000 | same flat balance |
+| At a 0% share | Today (2 months, shortfall $5,000) | 1 Sep 2027 (14 months, shortfall $38,600) |
+| --- | ---: | ---: |
+| Cumulative yield kept by NewMoney | NZ$8,820 / $5,000 | NZ$68,090.40 / $38,600 |
+| AUC required | NZ$2,116,800 / $1,200,000 | NZ$2,334,528 / $1,323,428.57 |
 
-The AUC chart follows the same timeline, including the vertical line for 29 September 2026. Edit the yield or the incentive share to restate both balances. The monthly table splits each month’s yield between NewMoney and counterparties.
+The opening counterparty share is **0%**. At 20%, today’s AUC rises to about NZ$2,646,000. The chart includes the vertical line for 29 September 2026.
 
 ## Run locally
 

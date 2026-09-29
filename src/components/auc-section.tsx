@@ -9,16 +9,16 @@ import { Input } from "@/components/ui/input"
 import {
   DEFAULT_COUNTERPARTY_SHARE_PERCENT,
   DEFAULT_YIELD_PERCENT,
-  monthlyYieldSplit,
+  cumulativeYieldSplit,
   parseSharePercent,
   parseYieldPercent,
   requiredAucUsd,
   retainedYieldPa,
-  runRateAucUsd,
+  yieldMonthsElapsed,
 } from "@/lib/auc"
 import { custody, otherTech } from "@/lib/colors"
 import { formatMoney, type Currency } from "@/lib/money"
-import { BRALE_CYCLE_USD, OTHER_TECH_CYCLE_USD, SNAPSHOT_LABEL, type ScheduleRow } from "@/lib/projection"
+import { SNAPSHOT_LABEL, type ScheduleRow } from "@/lib/projection"
 
 function DualMoney({ usd, nzd }: { usd: number | null; nzd: number | null }) {
   return (
@@ -54,7 +54,6 @@ export function AucSection({
   const [shareInput, setShareInput] = useState(String(DEFAULT_COUNTERPARTY_SHARE_PERCENT))
   const yieldPa = parseYieldPercent(yieldInput)
   const counterpartyShare = parseSharePercent(shareInput)
-  const ready = nzdPerUsd != null && yieldPa != null && counterpartyShare != null
 
   const rows = useMemo(() => {
     return schedule.map((row) => {
@@ -71,12 +70,14 @@ export function AucSection({
           auc: 0,
         }
       }
-      const aucUsd = requiredAucUsd(row.totalCumulativeUsd, yieldPa, counterpartyShare)
+      const monthsElapsed = yieldMonthsElapsed(row.isoDate, row.phase)
+      const aucUsd = requiredAucUsd(row.totalCumulativeUsd, yieldPa, counterpartyShare, monthsElapsed)
       const aucNzd = aucUsd * nzdPerUsd
-      const splitUsd = monthlyYieldSplit(aucUsd, yieldPa, counterpartyShare)
-      const splitNzd = monthlyYieldSplit(aucNzd, yieldPa, counterpartyShare)
+      const splitUsd = cumulativeYieldSplit(row.totalCumulativeUsd, counterpartyShare)
+      const splitNzd = cumulativeYieldSplit(row.totalCumulativeUsd * nzdPerUsd, counterpartyShare)
       return {
         ...row,
+        monthsElapsed,
         aucUsd,
         aucNzd,
         keptUsd: splitUsd.retained,
@@ -117,16 +118,15 @@ export function AucSection({
 
   const now = rows.find((row) => row.phase === "now")
   const horizon = rows.at(-1)
-  const runRateUsd =
-    ready && yieldPa != null && counterpartyShare != null
-      ? runRateAucUsd(BRALE_CYCLE_USD + OTHER_TECH_CYCLE_USD, yieldPa, counterpartyShare)
-      : null
-  const runRateNzd = runRateUsd != null && nzdPerUsd != null ? runRateUsd * nzdPerUsd : null
-  const yieldLabel = yieldPa == null ? "the annual yield" : `${(yieldPa * 100).toFixed(2)}%`
+  const yieldLabel = yieldPa == null ? "the gross yield" : `${(yieldPa * 100).toFixed(2)}%`
   const retainedPa =
     yieldPa != null && counterpartyShare != null ? retainedYieldPa(yieldPa, counterpartyShare) : null
+  const nowMonths = now ? yieldMonthsElapsed(now.isoDate, now.phase) : null
+  const horizonMonths = horizon ? yieldMonthsElapsed(horizon.isoDate, horizon.phase) : null
   const baselineNowUsd =
-    yieldPa != null && now ? requiredAucUsd(now.totalCumulativeUsd, yieldPa, 0) : null
+    yieldPa != null && now && nowMonths != null
+      ? requiredAucUsd(now.totalCumulativeUsd, yieldPa, 0, nowMonths)
+      : null
   const baselineNowNzd =
     baselineNowUsd != null && nzdPerUsd != null ? baselineNowUsd * nzdPerUsd : null
   const sharePercent = counterpartyShare == null ? null : counterpartyShare * 100
@@ -150,28 +150,27 @@ export function AucSection({
             sharePercent != null &&
             keptPercent != null ? (
               <>
-                On {SNAPSHOT_LABEL} the shortfall is {formatMoney(now.totalCumulativeUsd, "USD")} (
-                {formatMoney(now.shortfallNzd, "NZD")}). Counterparties take {sharePercent.toFixed(2)}%
-                of the {yieldLabel} yield, so NewMoney keeps {keptPercent.toFixed(2)}% (
-                {(retainedPa * 100).toFixed(2)}% a year).
+                On {SNAPSHOT_LABEL} the existing shortfall is {formatMoney(now.totalCumulativeUsd, "USD")} (
+                {formatMoney(now.shortfallNzd, "NZD")}). {nowMonths} months of yield have accrued.
+                Counterparties take {sharePercent.toFixed(2)}% of the {yieldLabel}, so NewMoney keeps{" "}
+                {keptPercent.toFixed(2)}% ({(retainedPa * 100).toFixed(2)}% a year). Cumulative yield
+                kept by NewMoney equals that shortfall
                 {counterpartyShare != null &&
                 counterpartyShare > 0 &&
                 baselineNowNzd != null &&
                 baselineNowUsd != null ? (
                   <>
-                    {" "}
-                    That incentive raises today’s required AUC from {formatMoney(baselineNowNzd, "NZD")}{" "}
-                    to {formatMoney(now.aucNzd, "NZD")} ({formatMoney(now.aucUsd, "USD")}).
+                    , and the incentive raises required AUC from {formatMoney(baselineNowNzd, "NZD")} to{" "}
+                    {formatMoney(now.aucNzd, "NZD")} ({formatMoney(now.aucUsd, "USD")})
                   </>
                 ) : (
                   <>
                     {" "}
-                    A year of the yield NewMoney keeps, on {formatMoney(now.aucNzd, "NZD")}, matches
-                    the shortfall.
+                    on {formatMoney(now.aucNzd, "NZD")} of stablecoin
                   </>
-                )}{" "}
-                By 1 Sep 2027 the same rule calls for {formatMoney(horizon.aucNzd, "NZD")} (
-                {formatMoney(horizon.aucUsd, "USD")}).
+                )}
+                . By 1 Sep 2027, after {horizonMonths} months, the same rule calls for{" "}
+                {formatMoney(horizon.aucNzd, "NZD")} ({formatMoney(horizon.aucUsd, "USD")}).
               </>
             ) : (
               <>Enter a spot rate, a yield above zero, and a counterparty share below 100%.</>
@@ -262,7 +261,7 @@ export function AucSection({
               <DualMoney usd={now?.aucUsd ?? null} nzd={now?.aucNzd ?? null} />
             </div>
             <p className="mt-3 text-sm text-muted-foreground">
-              A year of the yield NewMoney keeps equals the $5,000 shortfall
+              {nowMonths ?? "—"} months of retained yield cover the existing shortfall
             </p>
           </div>
           <div className="rounded-xl bg-background p-4 ring-1 ring-foreground/10">
@@ -271,16 +270,20 @@ export function AucSection({
               <DualMoney usd={horizon?.aucUsd ?? null} nzd={horizon?.aucNzd ?? null} />
             </div>
             <p className="mt-3 text-sm text-muted-foreground">
-              A year of the yield NewMoney keeps equals the stacked liability
+              {horizonMonths ?? "—"} months of retained yield cover the existing shortfall
             </p>
           </div>
           <div className="rounded-xl bg-background p-4 ring-1 ring-foreground/10">
-            <p className="text-sm text-muted-foreground">AUC to pay the monthly stack</p>
+            <p className="text-sm text-muted-foreground">Cumulative yield by today</p>
             <div className="mt-2">
-              <DualMoney usd={runRateUsd} nzd={runRateNzd} />
+              <DualMoney usd={now?.keptUsd ?? null} nzd={now?.keptNzd ?? null} />
             </div>
             <p className="mt-3 text-sm text-muted-foreground">
-              Monthly yield NewMoney keeps equals $2,500 Brale + $300 other tech
+              Retained yield equals the existing shortfall. Counterparties have taken{" "}
+              {now?.incentiveNzd == null || now.incentiveUsd == null
+                ? "—"
+                : `${formatMoney(now.incentiveNzd, "NZD")} (${formatMoney(now.incentiveUsd, "USD")})`}
+              .
             </p>
           </div>
         </div>
@@ -332,10 +335,10 @@ export function AucSection({
               <tr className="border-y border-border text-left text-xs tracking-wide text-muted-foreground uppercase">
                 <th scope="col" className="px-1 py-3 font-medium">Month</th>
                 <th scope="col" className="px-3 py-3 font-medium">Status</th>
-                <th scope="col" className="px-3 py-3 font-medium">Shortfall</th>
+                <th scope="col" className="px-3 py-3 font-medium">Existing shortfall</th>
                 <th scope="col" className="px-3 py-3 font-medium">AUC required</th>
-                <th scope="col" className="px-3 py-3 font-medium">NewMoney keeps</th>
-                <th scope="col" className="px-1 py-3 font-medium">Counterparties</th>
+                <th scope="col" className="px-3 py-3 font-medium">Cumulative yield kept</th>
+                <th scope="col" className="px-1 py-3 font-medium">Cumulative yield shared</th>
               </tr>
             </thead>
             <tbody>

@@ -1,13 +1,13 @@
 import assert from "node:assert/strict"
 import { describe, it } from "node:test"
 import {
+  cumulativeYieldSplit,
   monthlyYield,
-  monthlyYieldSplit,
   parseSharePercent,
   parseYieldPercent,
   requiredAucUsd,
   retainedYieldPa,
-  runRateAucUsd,
+  yieldMonthsElapsed,
 } from "./auc"
 import { DEFAULT_NZD_PER_USD, buildSchedule, summarize } from "./projection"
 
@@ -16,44 +16,49 @@ describe("stablecoin AUC", () => {
   const summary = summarize(schedule)
   const yieldPa = 0.025
 
-  it("sizes custody so a year of 2.5% yield equals the shortfall", () => {
-    assert.equal(requiredAucUsd(summary.overdueUsd, yieldPa), 200_000)
-    assert.equal(requiredAucUsd(summary.overdueUsd, yieldPa) * DEFAULT_NZD_PER_USD, 352_800)
-    assert.equal(requiredAucUsd(summary.horizonUsd, yieldPa), 1_544_000)
-    assert.equal(
-      requiredAucUsd(summary.horizonUsd, yieldPa) * DEFAULT_NZD_PER_USD,
-      2_723_616,
-    )
-    assert.equal(requiredAucUsd(7_800, yieldPa), 312_000)
-  })
-
-  it("accrues the annual yield in twelve simple monthly parts", () => {
-    const aucUsd = requiredAucUsd(summary.overdueUsd, yieldPa)
-    assert.equal(monthlyYield(aucUsd, yieldPa), summary.overdueUsd / 12)
-    assert.equal(
-      monthlyYield(aucUsd * DEFAULT_NZD_PER_USD, yieldPa),
-      (summary.overdueUsd * DEFAULT_NZD_PER_USD) / 12,
+  it("counts yield months from August, with today still on September's accrual", () => {
+    assert.deepEqual(
+      schedule.map((row) => yieldMonthsElapsed(row.isoDate, row.phase)),
+      [1, 2, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14],
     )
   })
 
-  it("sizes a flat balance whose monthly yield pays the $2,800 stack", () => {
-    assert.equal(runRateAucUsd(summary.monthlyTotalUsd, yieldPa), 1_344_000)
-    assert.equal(runRateAucUsd(summary.monthlyTotalUsd, yieldPa) * DEFAULT_NZD_PER_USD, 2_370_816)
-  })
+  it("sizes custody so cumulative yield covers the shortfall outstanding that month", () => {
+    const cover = (shortfall: number, months: number) =>
+      requiredAucUsd(shortfall, yieldPa, 0, months)
 
-  it("raises required custody every time the cumulative shortfall rises", () => {
-    let previous = 0
+    assert.equal(cover(2_500, 1), 1_200_000)
+    assert.equal(cover(summary.overdueUsd, 2), 1_200_000)
+    assert.equal(cover(summary.overdueUsd, 2) * DEFAULT_NZD_PER_USD, 2_116_800)
+    assert.equal(cover(7_800, 3), 1_248_000)
+    assert.equal(cover(7_800, 3) * DEFAULT_NZD_PER_USD, 2_201_472)
+    const horizon = cover(summary.horizonUsd, 14)
+    assert.ok(Math.abs(horizon - (38_600 * 12) / (0.025 * 14)) < 1e-6)
+    assert.equal(Math.round(horizon * DEFAULT_NZD_PER_USD), 2_334_528)
+
     for (const row of schedule) {
-      const auc = requiredAucUsd(row.totalCumulativeUsd, yieldPa)
-      assert.equal(auc * yieldPa, row.totalCumulativeUsd)
-      if (row.phase !== "now") assert.ok(auc > previous)
-      previous = auc
+      const months = yieldMonthsElapsed(row.isoDate, row.phase)
+      const auc = cover(row.totalCumulativeUsd, months)
+      const cumulative = monthlyYield(auc, yieldPa) * months
+      assert.ok(Math.abs(cumulative - row.totalCumulativeUsd) < 1e-6)
+      const split = cumulativeYieldSplit(row.totalCumulativeUsd, 0)
+      assert.equal(split.retained, row.totalCumulativeUsd)
+      assert.equal(split.incentive, 0)
     }
-    const now = schedule.find((row) => row.phase === "now")
+  })
+
+  it("holds custody flat from the second overdue month through today", () => {
     const september = schedule.find((row) => row.isoDate === "2026-09-01")
+    const now = schedule.find((row) => row.phase === "now")
+    assert.ok(september && now)
     assert.equal(
-      requiredAucUsd(now?.totalCumulativeUsd ?? 0, yieldPa),
-      requiredAucUsd(september?.totalCumulativeUsd ?? 0, yieldPa),
+      requiredAucUsd(now.totalCumulativeUsd, yieldPa, 0, yieldMonthsElapsed(now.isoDate, now.phase)),
+      requiredAucUsd(
+        september.totalCumulativeUsd,
+        yieldPa,
+        0,
+        yieldMonthsElapsed(september.isoDate, september.phase),
+      ),
     )
   })
 })
@@ -62,30 +67,29 @@ describe("counterparty yield share", () => {
   const yieldPa = 0.025
   const summary = summarize(buildSchedule())
 
-  it("leaves the full yield with NewMoney when nothing is shared", () => {
+  it("leaves cumulative yield with NewMoney when nothing is shared", () => {
     assert.equal(retainedYieldPa(yieldPa, 0), yieldPa)
-    assert.equal(requiredAucUsd(summary.overdueUsd, yieldPa, 0), 200_000)
-    const split = monthlyYieldSplit(200_000, yieldPa, 0)
+    const split = cumulativeYieldSplit(summary.overdueUsd, 0)
+    assert.equal(split.retained, summary.overdueUsd)
     assert.equal(split.incentive, 0)
-    assert.equal(split.retained, summary.overdueUsd / 12)
   })
 
-  it("increases AUC so the yield NewMoney keeps still covers the shortfall", () => {
+  it("increases AUC so cumulative retained yield still covers that month's shortfall", () => {
     const share = 0.2
-    assert.ok(Math.abs(retainedYieldPa(yieldPa, share) - 0.02) < 1e-12)
-    const today = requiredAucUsd(summary.overdueUsd, yieldPa, share)
-    assert.equal(Math.round(today), 250_000)
-    assert.equal(Math.round(today * DEFAULT_NZD_PER_USD), 441_000)
-    assert.equal(Math.round(requiredAucUsd(summary.horizonUsd, yieldPa, share)), 1_930_000)
+    const monthsToday = 2
+    const today = requiredAucUsd(summary.overdueUsd, yieldPa, share, monthsToday)
+    const fullYield = requiredAucUsd(summary.overdueUsd, yieldPa, 0, monthsToday)
+    assert.equal(Math.round(today), 1_500_000)
+    assert.equal(Math.round(today * DEFAULT_NZD_PER_USD), 2_646_000)
+    assert.ok(today > fullYield)
 
-    const split = monthlyYieldSplit(today, yieldPa, share)
-    assert.ok(Math.abs(split.retained - summary.overdueUsd / 12) < 1e-6)
-    assert.ok(Math.abs(split.incentive - split.gross * share) < 1e-6)
-    assert.ok(split.incentive > 0)
-    assert.ok(today > requiredAucUsd(summary.overdueUsd, yieldPa, 0))
+    const split = cumulativeYieldSplit(summary.overdueUsd, share)
+    assert.equal(split.retained, summary.overdueUsd)
+    assert.ok(Math.abs(split.incentive - summary.overdueUsd * (share / (1 - share))) < 1e-6)
+    assert.ok(Math.abs(monthlyYield(today, retainedYieldPa(yieldPa, share)) * monthsToday - split.retained) < 1e-4)
 
-    assert.equal(Math.round(runRateAucUsd(summary.monthlyTotalUsd, yieldPa, share)), 1_680_000)
-    assert.equal(requiredAucUsd(summary.overdueUsd, yieldPa, 0.5), 400_000)
+    const horizon = requiredAucUsd(summary.horizonUsd, yieldPa, share, 14)
+    assert.ok(horizon > requiredAucUsd(summary.horizonUsd, yieldPa, 0, 14))
   })
 })
 

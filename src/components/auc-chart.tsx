@@ -117,14 +117,14 @@ function ChartTooltip({
           </dd>
         </div>
         <div className="flex justify-between gap-6 border-t border-border pt-1.5">
-          <dt>NewMoney keeps</dt>
+          <dt>Cumulative yield kept</dt>
           <dd className="text-right font-mono">
             {formatMoney(point.keptNzd, "NZD")}
             <span className="block text-muted-foreground">{formatMoney(point.keptUsd, "USD")}</span>
           </dd>
         </div>
         <div className="flex justify-between gap-6">
-          <dt>Counterparties</dt>
+          <dt>Cumulative yield shared</dt>
           <dd className="text-right font-mono">
             {formatMoney(point.incentiveNzd, "NZD")}
             <span className="block text-muted-foreground">{formatMoney(point.incentiveUsd, "USD")}</span>

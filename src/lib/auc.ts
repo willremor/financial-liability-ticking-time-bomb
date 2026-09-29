@@ -23,15 +23,37 @@ export function retainedYieldPa(grossYieldPa: number, counterpartyShare: number)
 }
 
 /**
- * Custody whose full-year yield, after the counterparty share, equals the shortfall.
- * A larger share leaves NewMoney less yield per dollar of AUC, so the balance rises.
+ * Posting months of yield accrued by this row. August 2026 is month 1.
+ * The 29 Sep snapshot does not add a further accrual beyond 1 Sep.
+ */
+export function yieldMonthsElapsed(isoDate: string, phase: "overdue" | "now" | "projected") {
+  if (phase === "now") return 2
+  const [year, month] = isoDate.split("-").map(Number)
+  return (year - 2026) * 12 + (month - 8) + 1
+}
+
+/**
+ * Custody whose cumulative retained yield, over the months already elapsed,
+ * equals the shortfall outstanding in that month.
  */
 export function requiredAucUsd(
   shortfallUsd: number,
   grossYieldPa: number,
-  counterpartyShare = 0,
+  counterpartyShare: number,
+  monthsElapsed: number,
 ) {
-  return shortfallUsd / retainedYieldPa(grossYieldPa, counterpartyShare)
+  return shortfallUsd / (retainedYieldPa(grossYieldPa, counterpartyShare) * (monthsElapsed / 12))
+}
+
+/** Cumulative yield that covers this month's existing shortfall. NewMoney's portion equals the shortfall. */
+export function cumulativeYieldSplit(shortfallUsd: number, counterpartyShare: number) {
+  const retained = shortfallUsd
+  const gross = counterpartyShare === 0 ? retained : retained / (1 - counterpartyShare)
+  return {
+    gross,
+    incentive: gross - retained,
+    retained,
+  }
 }
 
 /** One twelfth of the annual yield. Simple accrual, not compounded. */
@@ -53,11 +75,3 @@ export function monthlyYieldSplit(
   }
 }
 
-/** Custody whose monthly yield, after the counterparty share, equals one month of new liability. */
-export function runRateAucUsd(
-  monthlyLiabilityUsd: number,
-  grossYieldPa: number,
-  counterpartyShare = 0,
-) {
-  return monthlyLiabilityUsd / (retainedYieldPa(grossYieldPa, counterpartyShare) / 12)
-}
