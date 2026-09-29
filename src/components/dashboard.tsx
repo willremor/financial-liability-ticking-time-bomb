@@ -5,6 +5,7 @@ import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
+import { AucSection } from "@/components/auc-section"
 import { CumulativeChart } from "@/components/cumulative-chart"
 import { brale, otherTech } from "@/lib/colors"
 import { formatMoney, formatNzd, parseNzdPerUsd, type Currency } from "@/lib/money"
@@ -132,7 +133,8 @@ export function Dashboard({ schedule }: { schedule: ScheduleRow[] }) {
               Two Brale tokenisation cycles of {formatMoney(2_500, "USD")} are already past due.
               From October, each month stacks another {formatMoney(2_500, "USD")} of Brale on{" "}
               {formatMoney(300, "USD")} of other tech. The vertical line is today. The bars are
-              the running total if nothing is paid.
+              the running total if nothing is paid. The custody view sizes the NZD stablecoin
+              balance whose annual yield matches that shortfall each month.
             </p>
           </div>
           <div className="w-full max-w-xs rounded-xl bg-card p-4 ring-1 ring-foreground/10">
@@ -261,6 +263,13 @@ export function Dashboard({ schedule }: { schedule: ScheduleRow[] }) {
           </CardContent>
         </Card>
 
+        <AucSection
+          schedule={schedule}
+          currency={currency}
+          nzdPerUsd={nzdPerUsd}
+          onCurrencyChange={setRequestedCurrency}
+        />
+
         <Card>
           <CardHeader>
             <CardTitle className="font-heading text-2xl tracking-tight">Monthly schedule</CardTitle>
@@ -385,6 +394,15 @@ export function Dashboard({ schedule }: { schedule: ScheduleRow[] }) {
               NZD amounts restate the USD balance at the spot rate in the header, held flat across the
               year. The opening rate is 1 USD = {DEFAULT_NZD_PER_USD.toFixed(4)} NZD, the mid-market
               price on {SNAPSHOT_LABEL}.
+            </li>
+            <li>
+              NZD stablecoin assets under custody earn 2.5% per year. Yield accrues in twelve simple
+              monthly parts, with no compounding.
+            </li>
+            <li>
+              Required AUC in a month is the cumulative shortfall divided by that annual yield, so a
+              year of earnings matches what is owed. A separate balance is the custody whose monthly
+              yield equals the $2,800 stack.
             </li>
           </ul>
         </section>

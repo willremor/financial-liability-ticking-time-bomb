@@ -17,6 +17,17 @@ The chart stacks Brale and other tech into a running total. A vertical line mark
 
 NZD figures use a mid-market spot of **1 USD = 1.7640 NZD** on 29 September 2026. Change the rate in the header to restate every New Zealand dollar amount. The rate stays flat across the year.
 
+## Stablecoin assets under custody
+
+NZD stablecoin balances earn **2.5% per year**, accrued as one twelfth each month with no compounding. Two custody figures use that yield:
+
+| Capital required | Rule | Today | 1 Sep 2027 |
+| --- | --- | ---: | ---: |
+| AUC to match the shortfall | cumulative shortfall ÷ 2.5% | NZ$352,800 / $200,000 | NZ$2,723,616 / $1,544,000 |
+| AUC to pay the monthly stack | $2,800 ÷ (2.5% / 12) | NZ$2,370,816 / $1,344,000 | same flat balance |
+
+The AUC chart follows the same timeline, including the vertical line for 29 September 2026. Edit the yield field to restate both balances.
+
 ## Run locally
 
 ```bash

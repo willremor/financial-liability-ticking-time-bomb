@@ -27,6 +27,11 @@ export function formatNzd(usd: number, nzdPerUsd: number | null) {
 export function formatAxis(value: number, currency: Currency) {
   const sign = currency === "USD" ? "$" : "NZ$"
   const abs = Math.abs(value)
+  if (abs >= 1_000_000) {
+    const scaled = value / 1_000_000
+    const digits = Math.abs(scaled) >= 10 ? 1 : 2
+    return `${sign}${scaled.toFixed(digits)}m`
+  }
   if (abs >= 1000) {
     const scaled = value / 1000
     const digits = Math.abs(scaled) >= 10 ? 0 : 1
