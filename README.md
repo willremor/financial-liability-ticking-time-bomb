@@ -19,18 +19,21 @@ NZD figures use a mid-market spot of **1 USD = 1.7640 NZD** on 29 September 2026
 
 ## Stablecoin assets under custody
 
-NZD stablecoin balances earn **2.5% per year**, accrued as one twelfth each month with no compounding. For each month, required custody is the balance whose **cumulative retained yield so far equals the shortfall outstanding that month**:
+NZD stablecoin balances earn **2.5% per year**, accrued as one twelfth each month with no compounding. Counterparties take their share of the gross yield first. The issuer then pays tax on the yield it receives. For each month, required custody is the balance whose **cumulative net yield so far equals the shortfall outstanding that month**:
 
-`AUC = existing shortfall ÷ (2.5% × (1 − counterparty share) × months elapsed / 12)`
+`AUC = existing shortfall ÷ (2.5% × (1 − counterparty share) × (1 − issuer tax) × months elapsed / 12)`
 
-August 2026 is month 1. Today is still month 2. 1 September 2027 is month 14. NewMoney’s cumulative yield equals the existing shortfall. Counterparties’ cumulative yield is their share of the gross.
+August 2026 is month 1. Today is still month 2. 1 September 2027 is month 14. NewMoney’s cumulative net yield equals the existing shortfall. Tax and the counterparty incentive are grossed up on top of that.
 
-| At a 0% share | Today (2 months, shortfall $5,000) | 1 Sep 2027 (14 months, shortfall $38,600) |
+The opening counterparty share is **0%**. The opening issuer tax is **28%**, the New Zealand company tax rate.
+
+| At a 0% share and 28% tax | Today (2 months, shortfall $5,000) | 1 Sep 2027 (14 months, shortfall $38,600) |
 | --- | ---: | ---: |
-| Cumulative yield kept by NewMoney | NZ$8,820 / $5,000 | NZ$68,090.40 / $38,600 |
-| AUC required | NZ$2,116,800 / $1,200,000 | NZ$2,334,528 / $1,323,428.57 |
+| Cumulative net yield | NZ$8,820 / $5,000 | NZ$68,090.40 / $38,600 |
+| Tax on yield received | NZ$3,430 / $1,944.44 | NZ$26,479.60 / $15,011.11 |
+| AUC required | NZ$2,940,000 / $1,666,666.67 | NZ$3,242,400 / $1,838,095.24 |
 
-The opening counterparty share is **0%**. At 20%, today’s AUC rises to about NZ$2,646,000. The chart includes the vertical line for 29 September 2026.
+Without the tax, today’s AUC would be NZ$2,116,800 / $1,200,000. A 20% counterparty share on top of the 28% tax raises today’s AUC to NZ$3,675,000 / $2,083,333.33. The chart includes the vertical line for 29 September 2026.
 
 ## Run locally
 

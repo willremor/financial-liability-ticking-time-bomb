@@ -1,5 +1,7 @@
 export const DEFAULT_YIELD_PERCENT = 2.5
 export const DEFAULT_COUNTERPARTY_SHARE_PERCENT = 0
+/** New Zealand company tax rate. The issuer pays this on yield it receives. */
+export const DEFAULT_ISSUER_TAX_PERCENT = 28
 
 export function parseYieldPercent(value: string): number | null {
   const trimmed = value.trim()
@@ -18,8 +20,25 @@ export function parseSharePercent(value: string): number | null {
   return percent / 100
 }
 
-export function retainedYieldPa(grossYieldPa: number, counterpartyShare: number) {
-  return grossYieldPa * (1 - counterpartyShare)
+/** Tax on yield the issuer receives. 100% would leave NewMoney with nothing. */
+export function parseIssuerTaxPercent(value: string): number | null {
+  const trimmed = value.trim()
+  if (!/^\d+(\.\d+)?$/.test(trimmed)) return null
+  const percent = Number(trimmed)
+  if (!Number.isFinite(percent) || percent < 0 || percent >= 100) return null
+  return percent / 100
+}
+
+/**
+ * Yield NewMoney keeps. Counterparties take their share of the gross yield first.
+ * The issuer then pays tax on the yield it receives.
+ */
+export function retainedYieldPa(
+  grossYieldPa: number,
+  counterpartyShare: number,
+  issuerTax = 0,
+) {
+  return grossYieldPa * (1 - counterpartyShare) * (1 - issuerTax)
 }
 
 /**
@@ -33,25 +52,39 @@ export function yieldMonthsElapsed(isoDate: string, phase: "overdue" | "now" | "
 }
 
 /**
- * Custody whose cumulative retained yield, over the months already elapsed,
- * equals the shortfall outstanding in that month.
+ * Custody whose cumulative net yield, over the months already elapsed,
+ * equals the shortfall outstanding in that month. Net yield is what remains
+ * after the counterparty share and tax on the yield the issuer receives.
  */
 export function requiredAucUsd(
   shortfallUsd: number,
   grossYieldPa: number,
   counterpartyShare: number,
   monthsElapsed: number,
+  issuerTax = 0,
 ) {
-  return shortfallUsd / (retainedYieldPa(grossYieldPa, counterpartyShare) * (monthsElapsed / 12))
+  return (
+    shortfallUsd / (retainedYieldPa(grossYieldPa, counterpartyShare, issuerTax) * (monthsElapsed / 12))
+  )
 }
 
-/** Cumulative yield that covers this month's existing shortfall. NewMoney's portion equals the shortfall. */
-export function cumulativeYieldSplit(shortfallUsd: number, counterpartyShare: number) {
+/**
+ * Cumulative yield that covers this month's existing shortfall.
+ * NewMoney's net portion equals the shortfall. Tax is charged on the yield
+ * the issuer receives after the counterparty incentive.
+ */
+export function cumulativeYieldSplit(
+  shortfallUsd: number,
+  counterpartyShare: number,
+  issuerTax = 0,
+) {
   const retained = shortfallUsd
-  const gross = counterpartyShare === 0 ? retained : retained / (1 - counterpartyShare)
+  const received = issuerTax === 0 ? retained : retained / (1 - issuerTax)
+  const gross = counterpartyShare === 0 ? received : received / (1 - counterpartyShare)
   return {
     gross,
-    incentive: gross - retained,
+    incentive: gross - received,
+    tax: received - retained,
     retained,
   }
 }
@@ -65,13 +98,17 @@ export function monthlyYieldSplit(
   principal: number,
   grossYieldPa: number,
   counterpartyShare: number,
+  issuerTax = 0,
 ) {
   const gross = monthlyYield(principal, grossYieldPa)
   const incentive = gross * counterpartyShare
+  const received = gross - incentive
+  const tax = received * issuerTax
   return {
     gross,
     incentive,
-    retained: gross - incentive,
+    tax,
+    retained: received - tax,
   }
 }
 

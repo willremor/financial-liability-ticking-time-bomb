@@ -3,6 +3,7 @@ import { describe, it } from "node:test"
 import {
   cumulativeYieldSplit,
   monthlyYield,
+  parseIssuerTaxPercent,
   parseSharePercent,
   parseYieldPercent,
   requiredAucUsd,
@@ -101,6 +102,56 @@ describe("parseSharePercent", () => {
     assert.equal(parseSharePercent(""), null)
     assert.equal(parseSharePercent("100"), null)
     assert.equal(parseSharePercent("-5"), null)
+  })
+})
+
+describe("issuer tax on yield received", () => {
+  const yieldPa = 0.025
+  const summary = summarize(buildSchedule())
+  const tax = 0.28
+
+  it("treats 28 percent as a valid issuer tax and rejects a rate that leaves no net yield", () => {
+    assert.equal(parseIssuerTaxPercent("28"), 0.28)
+    assert.equal(parseIssuerTaxPercent("0"), 0)
+    assert.equal(parseIssuerTaxPercent("100"), null)
+    assert.equal(parseIssuerTaxPercent(""), null)
+    assert.equal(parseIssuerTaxPercent("-5"), null)
+  })
+
+  it("sizes AUC on the yield left after tax on what the issuer receives", () => {
+    const monthsToday = 2
+    const today = requiredAucUsd(summary.overdueUsd, yieldPa, 0, monthsToday, tax)
+    const untaxed = requiredAucUsd(summary.overdueUsd, yieldPa, 0, monthsToday, 0)
+    assert.equal(Math.round(today), 1_666_667)
+    assert.equal(Math.round(today * DEFAULT_NZD_PER_USD), 2_940_000)
+    assert.ok(today > untaxed)
+
+    const split = cumulativeYieldSplit(summary.overdueUsd, 0, tax)
+    assert.equal(split.retained, summary.overdueUsd)
+    assert.equal(split.incentive, 0)
+    assert.ok(Math.abs(split.tax - summary.overdueUsd * (tax / (1 - tax))) < 1e-6)
+    assert.ok(
+      Math.abs(monthlyYield(today, retainedYieldPa(yieldPa, 0, tax)) * monthsToday - split.retained) < 1e-4,
+    )
+
+    const horizon = requiredAucUsd(summary.horizonUsd, yieldPa, 0, 14, tax)
+    assert.equal(Math.round(horizon * DEFAULT_NZD_PER_USD), 3_242_400)
+  })
+
+  it("takes the counterparty share before tax and still covers that month's shortfall", () => {
+    const share = 0.2
+    const today = requiredAucUsd(summary.overdueUsd, yieldPa, share, 2, tax)
+    const taxOnly = requiredAucUsd(summary.overdueUsd, yieldPa, 0, 2, tax)
+    assert.equal(Math.round(today), 2_083_333)
+    assert.equal(Math.round(today * DEFAULT_NZD_PER_USD), 3_675_000)
+    assert.ok(today > taxOnly)
+
+    const split = cumulativeYieldSplit(summary.overdueUsd, share, tax)
+    const gross = summary.overdueUsd / ((1 - share) * (1 - tax))
+    assert.equal(split.retained, summary.overdueUsd)
+    assert.ok(Math.abs(split.gross - gross) < 1e-6)
+    assert.ok(Math.abs(split.incentive - gross * share) < 1e-6)
+    assert.ok(Math.abs(split.tax - gross * (1 - share) * tax) < 1e-6)
   })
 })
 

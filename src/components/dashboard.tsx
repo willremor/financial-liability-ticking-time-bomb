@@ -134,7 +134,8 @@ export function Dashboard({ schedule }: { schedule: ScheduleRow[] }) {
               From October, each month stacks another {formatMoney(2_500, "USD")} of Brale on{" "}
               {formatMoney(300, "USD")} of other tech. The vertical line is today. The bars are
               the running total if nothing is paid. The custody view sizes the NZD stablecoin
-              balance whose cumulative yield to date covers the shortfall already outstanding that month.
+              balance whose cumulative net yield to date, after tax on the yield the issuer receives,
+              covers the shortfall already outstanding that month.
             </p>
           </div>
           <div className="w-full max-w-xs rounded-xl bg-card p-4 ring-1 ring-foreground/10">
@@ -401,13 +402,14 @@ export function Dashboard({ schedule }: { schedule: ScheduleRow[] }) {
               September’s second accrual. September 2027 is the fourteenth.
             </li>
             <li>
-              A share of that yield can be paid to counterparties as an incentive. The opening share is
-              0%. NewMoney’s cumulative yield is what remains.
+              A share of that gross yield can be paid to counterparties as an incentive. The opening share is
+              0%. The stablecoin issuer then pays tax on the yield it receives. The opening tax rate is 28%,
+              the New Zealand company tax rate. NewMoney’s cumulative net yield is what remains.
             </li>
             <li>
-              Required AUC in a month is the balance whose cumulative retained yield so far equals the
-              shortfall outstanding that month. Raising the counterparty share lowers the yield NewMoney
-              keeps and increases the custody needed to cover that same shortfall.
+              Required AUC in a month is the balance whose cumulative net yield so far equals the shortfall
+              outstanding that month. A higher counterparty share or a higher issuer tax lowers the yield
+              NewMoney keeps and increases the custody needed to cover that same shortfall.
             </li>
           </ul>
         </section>
