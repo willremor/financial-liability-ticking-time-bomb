@@ -19,14 +19,18 @@ NZD figures use a mid-market spot of **1 USD = 1.7640 NZD** on 29 September 2026
 
 ## Stablecoin assets under custody
 
-NZD stablecoin balances earn **2.5% per year**, accrued as one twelfth each month with no compounding. Two custody figures use that yield:
+NZD stablecoin balances earn **2.5% per year**, accrued as one twelfth each month with no compounding. A share of that yield can be paid to counterparties. NewMoney keeps the rest, and the custody balance is sized on the yield it keeps:
 
-| Capital required | Rule | Today | 1 Sep 2027 |
+`AUC = shortfall ÷ (2.5% × (1 − counterparty share))`
+
+The opening counterparty share is **0%**, so the figures below match the full yield. At a 20% share, today’s AUC rises from NZ$352,800 to NZ$441,000.
+
+| Capital required | Rule at a 0% share | Today | 1 Sep 2027 |
 | --- | --- | ---: | ---: |
 | AUC to match the shortfall | cumulative shortfall ÷ 2.5% | NZ$352,800 / $200,000 | NZ$2,723,616 / $1,544,000 |
 | AUC to pay the monthly stack | $2,800 ÷ (2.5% / 12) | NZ$2,370,816 / $1,344,000 | same flat balance |
 
-The AUC chart follows the same timeline, including the vertical line for 29 September 2026. Edit the yield field to restate both balances.
+The AUC chart follows the same timeline, including the vertical line for 29 September 2026. Edit the yield or the incentive share to restate both balances. The monthly table splits each month’s yield between NewMoney and counterparties.
 
 ## Run locally
 

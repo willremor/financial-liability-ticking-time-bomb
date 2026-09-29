@@ -7,12 +7,16 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import {
+  DEFAULT_COUNTERPARTY_SHARE_PERCENT,
   DEFAULT_YIELD_PERCENT,
-  monthlyYield,
+  monthlyYieldSplit,
+  parseSharePercent,
   parseYieldPercent,
   requiredAucUsd,
+  retainedYieldPa,
   runRateAucUsd,
 } from "@/lib/auc"
+import { custody, otherTech } from "@/lib/colors"
 import { formatMoney, type Currency } from "@/lib/money"
 import { BRALE_CYCLE_USD, OTHER_TECH_CYCLE_USD, SNAPSHOT_LABEL, type ScheduleRow } from "@/lib/projection"
 
@@ -47,42 +51,52 @@ export function AucSection({
   onCurrencyChange: (currency: Currency) => void
 }) {
   const [yieldInput, setYieldInput] = useState(DEFAULT_YIELD_PERCENT.toFixed(1))
+  const [shareInput, setShareInput] = useState(String(DEFAULT_COUNTERPARTY_SHARE_PERCENT))
   const yieldPa = parseYieldPercent(yieldInput)
-  const ready = nzdPerUsd != null && yieldPa != null
+  const counterpartyShare = parseSharePercent(shareInput)
+  const ready = nzdPerUsd != null && yieldPa != null && counterpartyShare != null
 
   const rows = useMemo(() => {
     return schedule.map((row) => {
-      if (nzdPerUsd == null || yieldPa == null) {
+      if (nzdPerUsd == null || yieldPa == null || counterpartyShare == null) {
         return {
           ...row,
           aucUsd: null,
           aucNzd: null,
-          yieldUsd: null,
-          yieldNzd: null,
+          keptUsd: null,
+          keptNzd: null,
+          incentiveUsd: null,
+          incentiveNzd: null,
           shortfallNzd: null,
           auc: 0,
         }
       }
-      const aucUsd = requiredAucUsd(row.totalCumulativeUsd, yieldPa)
+      const aucUsd = requiredAucUsd(row.totalCumulativeUsd, yieldPa, counterpartyShare)
       const aucNzd = aucUsd * nzdPerUsd
+      const splitUsd = monthlyYieldSplit(aucUsd, yieldPa, counterpartyShare)
+      const splitNzd = monthlyYieldSplit(aucNzd, yieldPa, counterpartyShare)
       return {
         ...row,
         aucUsd,
         aucNzd,
-        yieldUsd: monthlyYield(aucUsd, yieldPa),
-        yieldNzd: monthlyYield(aucNzd, yieldPa),
+        keptUsd: splitUsd.retained,
+        keptNzd: splitNzd.retained,
+        incentiveUsd: splitUsd.incentive,
+        incentiveNzd: splitNzd.incentive,
         shortfallNzd: row.totalCumulativeUsd * nzdPerUsd,
         auc: currency === "NZD" ? aucNzd : aucUsd,
       }
     })
-  }, [currency, nzdPerUsd, schedule, yieldPa])
+  }, [counterpartyShare, currency, nzdPerUsd, schedule, yieldPa])
 
   const chartPoints = rows.flatMap((row) => {
     if (
       row.aucUsd == null ||
       row.aucNzd == null ||
-      row.yieldUsd == null ||
-      row.yieldNzd == null ||
+      row.keptUsd == null ||
+      row.keptNzd == null ||
+      row.incentiveUsd == null ||
+      row.incentiveNzd == null ||
       row.shortfallNzd == null
     ) {
       return []
@@ -92,8 +106,10 @@ export function AucSection({
         ...row,
         aucUsd: row.aucUsd,
         aucNzd: row.aucNzd,
-        yieldUsd: row.yieldUsd,
-        yieldNzd: row.yieldNzd,
+        keptUsd: row.keptUsd,
+        keptNzd: row.keptNzd,
+        incentiveUsd: row.incentiveUsd,
+        incentiveNzd: row.incentiveNzd,
         shortfallNzd: row.shortfallNzd,
       },
     ]
@@ -102,9 +118,19 @@ export function AucSection({
   const now = rows.find((row) => row.phase === "now")
   const horizon = rows.at(-1)
   const runRateUsd =
-    ready && yieldPa != null ? runRateAucUsd(BRALE_CYCLE_USD + OTHER_TECH_CYCLE_USD, yieldPa) : null
+    ready && yieldPa != null && counterpartyShare != null
+      ? runRateAucUsd(BRALE_CYCLE_USD + OTHER_TECH_CYCLE_USD, yieldPa, counterpartyShare)
+      : null
   const runRateNzd = runRateUsd != null && nzdPerUsd != null ? runRateUsd * nzdPerUsd : null
   const yieldLabel = yieldPa == null ? "the annual yield" : `${(yieldPa * 100).toFixed(2)}%`
+  const retainedPa =
+    yieldPa != null && counterpartyShare != null ? retainedYieldPa(yieldPa, counterpartyShare) : null
+  const baselineNowUsd =
+    yieldPa != null && now ? requiredAucUsd(now.totalCumulativeUsd, yieldPa, 0) : null
+  const baselineNowNzd =
+    baselineNowUsd != null && nzdPerUsd != null ? baselineNowUsd * nzdPerUsd : null
+  const sharePercent = counterpartyShare == null ? null : counterpartyShare * 100
+  const keptPercent = sharePercent == null ? null : 100 - sharePercent
 
   return (
     <Card>
@@ -119,48 +145,92 @@ export function AucSection({
             now.shortfallNzd != null &&
             now.aucNzd != null &&
             horizon.aucNzd != null &&
-            horizon.aucUsd != null ? (
+            horizon.aucUsd != null &&
+            retainedPa != null &&
+            sharePercent != null &&
+            keptPercent != null ? (
               <>
                 On {SNAPSHOT_LABEL} the shortfall is {formatMoney(now.totalCumulativeUsd, "USD")} (
-                {formatMoney(now.shortfallNzd, "NZD")}). A year of {yieldLabel} yield on{" "}
-                {formatMoney(now.aucNzd, "NZD")} of NZD stablecoin matches that balance. By 1 Sep 2027
-                the same rule calls for {formatMoney(horizon.aucNzd, "NZD")} (
+                {formatMoney(now.shortfallNzd, "NZD")}). Counterparties take {sharePercent.toFixed(2)}%
+                of the {yieldLabel} yield, so NewMoney keeps {keptPercent.toFixed(2)}% (
+                {(retainedPa * 100).toFixed(2)}% a year).
+                {counterpartyShare != null &&
+                counterpartyShare > 0 &&
+                baselineNowNzd != null &&
+                baselineNowUsd != null ? (
+                  <>
+                    {" "}
+                    That incentive raises today’s required AUC from {formatMoney(baselineNowNzd, "NZD")}{" "}
+                    to {formatMoney(now.aucNzd, "NZD")} ({formatMoney(now.aucUsd, "USD")}).
+                  </>
+                ) : (
+                  <>
+                    {" "}
+                    A year of the yield NewMoney keeps, on {formatMoney(now.aucNzd, "NZD")}, matches
+                    the shortfall.
+                  </>
+                )}{" "}
+                By 1 Sep 2027 the same rule calls for {formatMoney(horizon.aucNzd, "NZD")} (
                 {formatMoney(horizon.aucUsd, "USD")}).
               </>
             ) : (
-              <>Enter a spot rate and a yield above zero to size assets under custody.</>
+              <>Enter a spot rate, a yield above zero, and a counterparty share below 100%.</>
             )}
           </CardDescription>
         </div>
-        <div className="flex flex-col gap-3 sm:flex-row md:flex-col">
-          <div className="w-full sm:w-44">
-            <label
-              htmlFor="yield-rate"
-              className="text-xs font-medium tracking-wide text-muted-foreground uppercase"
-            >
-              Stablecoin yield
-            </label>
-            <div className="mt-2 flex items-center gap-2">
-              <Input
-                id="yield-rate"
-                inputMode="decimal"
-                value={yieldInput}
-                aria-invalid={yieldPa == null}
-                aria-describedby="yield-rate-hint"
-                onChange={(event) => setYieldInput(event.target.value)}
-                className="font-mono"
-              />
-              <span className="text-sm text-muted-foreground">% p.a.</span>
+        <div className="flex w-full max-w-md flex-col gap-3">
+          <div className="grid gap-3 sm:grid-cols-2">
+            <div>
+              <label
+                htmlFor="yield-rate"
+                className="text-xs font-medium tracking-wide text-muted-foreground uppercase"
+              >
+                Stablecoin yield
+              </label>
+              <div className="mt-2 flex items-center gap-2">
+                <Input
+                  id="yield-rate"
+                  inputMode="decimal"
+                  value={yieldInput}
+                  aria-invalid={yieldPa == null}
+                  aria-describedby="yield-rate-hint"
+                  onChange={(event) => setYieldInput(event.target.value)}
+                  className="font-mono"
+                />
+                <span className="text-sm text-muted-foreground">% p.a.</span>
+              </div>
             </div>
-            <p
-              id="yield-rate-hint"
-              className={`mt-2 text-xs leading-5 ${yieldPa == null ? "text-destructive" : "text-muted-foreground"}`}
-            >
-              {yieldPa == null
-                ? "Enter a yield above 0 and up to 100."
-                : "NZD stablecoin earning. Simple monthly accrual, not compounded."}
-            </p>
+            <div>
+              <label
+                htmlFor="yield-share"
+                className="text-xs font-medium tracking-wide text-muted-foreground uppercase"
+              >
+                Shared as incentive
+              </label>
+              <div className="mt-2 flex items-center gap-2">
+                <Input
+                  id="yield-share"
+                  inputMode="decimal"
+                  value={shareInput}
+                  aria-invalid={counterpartyShare == null}
+                  aria-describedby="yield-rate-hint"
+                  onChange={(event) => setShareInput(event.target.value)}
+                  className="font-mono"
+                />
+                <span className="text-sm text-muted-foreground">%</span>
+              </div>
+            </div>
           </div>
+          <p
+            id="yield-rate-hint"
+            className={`text-xs leading-5 ${yieldPa == null || counterpartyShare == null ? "text-destructive" : "text-muted-foreground"}`}
+          >
+            {yieldPa == null
+              ? "Enter a yield above 0 and up to 100."
+              : counterpartyShare == null
+                ? "Enter the percent of yield shared with counterparties, from 0 up to but not including 100."
+                : "NZD stablecoin earning, accrued monthly. The incentive is a share of that yield. NewMoney keeps the rest."}
+          </p>
           <div className="inline-flex h-fit rounded-lg bg-muted p-1" role="group" aria-label="AUC chart currency">
             <Button
               type="button"
@@ -191,14 +261,18 @@ export function AucSection({
             <div className="mt-2">
               <DualMoney usd={now?.aucUsd ?? null} nzd={now?.aucNzd ?? null} />
             </div>
-            <p className="mt-3 text-sm text-muted-foreground">Annual yield equals the $5,000 shortfall</p>
+            <p className="mt-3 text-sm text-muted-foreground">
+              A year of the yield NewMoney keeps equals the $5,000 shortfall
+            </p>
           </div>
           <div className="rounded-xl bg-background p-4 ring-1 ring-foreground/10">
             <p className="text-sm text-muted-foreground">AUC required on 1 Sep 2027</p>
             <div className="mt-2">
               <DualMoney usd={horizon?.aucUsd ?? null} nzd={horizon?.aucNzd ?? null} />
             </div>
-            <p className="mt-3 text-sm text-muted-foreground">Annual yield equals the full stacked liability</p>
+            <p className="mt-3 text-sm text-muted-foreground">
+              A year of the yield NewMoney keeps equals the stacked liability
+            </p>
           </div>
           <div className="rounded-xl bg-background p-4 ring-1 ring-foreground/10">
             <p className="text-sm text-muted-foreground">AUC to pay the monthly stack</p>
@@ -206,26 +280,53 @@ export function AucSection({
               <DualMoney usd={runRateUsd} nzd={runRateNzd} />
             </div>
             <p className="mt-3 text-sm text-muted-foreground">
-              Monthly yield equals $2,500 Brale + $300 other tech
+              Monthly yield NewMoney keeps equals $2,500 Brale + $300 other tech
             </p>
           </div>
         </div>
+
+        {sharePercent != null && keptPercent != null ? (
+          <div className="mt-6">
+            <p className="text-xs font-medium tracking-wide text-muted-foreground uppercase">
+              Yield split on required AUC
+            </p>
+            <div
+              className="mt-2 flex h-3 overflow-hidden rounded-full bg-muted"
+              role="img"
+              aria-label={`NewMoney keeps ${keptPercent.toFixed(2)} percent of the yield. Counterparties receive ${sharePercent.toFixed(2)} percent.`}
+            >
+              <div style={{ width: `${keptPercent}%`, backgroundColor: custody }} />
+              <div style={{ width: `${sharePercent}%`, backgroundColor: otherTech }} />
+            </div>
+            <div className="mt-2 flex flex-wrap justify-between gap-2 text-xs">
+              <p>
+                <span className="text-muted-foreground">NewMoney keeps </span>
+                <span className="font-mono">{keptPercent.toFixed(2)}%</span>
+              </p>
+              <p>
+                <span className="text-muted-foreground">Counterparties </span>
+                <span className="font-mono">{sharePercent.toFixed(2)}%</span>
+              </p>
+            </div>
+          </div>
+        ) : null}
 
         <div className="mt-6" aria-labelledby="auc-heading">
           {chartPoints.length > 0 ? (
             <AucChart points={chartPoints} currency={currency} />
           ) : (
             <p className="flex h-40 items-center text-sm text-destructive">
-              Enter a USD to NZD rate and a stablecoin yield to plot required custody.
+              Enter a USD to NZD rate, a stablecoin yield, and a counterparty share below 100% to plot
+              required custody.
             </p>
           )}
         </div>
 
         <div className="mt-6 overflow-x-auto border-t border-border pt-5">
-          <table className="w-full min-w-[720px] border-collapse text-sm">
+          <table className="w-full min-w-[920px] border-collapse text-sm">
             <caption className="sr-only">
-              Monthly NZD stablecoin assets under custody required to cover the cumulative liability
-              shortfall at the stated annual yield, with the monthly yield on that balance.
+              Monthly NZD stablecoin assets under custody required so the yield NewMoney keeps covers
+              the cumulative liability shortfall, after the counterparty incentive share.
             </caption>
             <thead>
               <tr className="border-y border-border text-left text-xs tracking-wide text-muted-foreground uppercase">
@@ -233,7 +334,8 @@ export function AucSection({
                 <th scope="col" className="px-3 py-3 font-medium">Status</th>
                 <th scope="col" className="px-3 py-3 font-medium">Shortfall</th>
                 <th scope="col" className="px-3 py-3 font-medium">AUC required</th>
-                <th scope="col" className="px-1 py-3 font-medium">Monthly yield</th>
+                <th scope="col" className="px-3 py-3 font-medium">NewMoney keeps</th>
+                <th scope="col" className="px-1 py-3 font-medium">Counterparties</th>
               </tr>
             </thead>
             <tbody>
@@ -279,10 +381,18 @@ export function AucSection({
                         {row.aucUsd == null ? "—" : formatMoney(row.aucUsd, "USD")}
                       </span>
                     </td>
-                    <td className="px-1 py-3 font-mono text-xs leading-5">
-                      <span className="block">{row.yieldNzd == null ? "—" : formatMoney(row.yieldNzd, "NZD")}</span>
+                    <td className="px-3 py-3 font-mono text-xs leading-5">
+                      <span className="block">{row.keptNzd == null ? "—" : formatMoney(row.keptNzd, "NZD")}</span>
                       <span className="block text-muted-foreground">
-                        {row.yieldUsd == null ? "—" : formatMoney(row.yieldUsd, "USD")}
+                        {row.keptUsd == null ? "—" : formatMoney(row.keptUsd, "USD")}
+                      </span>
+                    </td>
+                    <td className="px-1 py-3 font-mono text-xs leading-5">
+                      <span className="block">
+                        {row.incentiveNzd == null ? "—" : formatMoney(row.incentiveNzd, "NZD")}
+                      </span>
+                      <span className="block text-muted-foreground">
+                        {row.incentiveUsd == null ? "—" : formatMoney(row.incentiveUsd, "USD")}
                       </span>
                     </td>
                   </tr>

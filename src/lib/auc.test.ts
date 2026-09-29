@@ -2,8 +2,11 @@ import assert from "node:assert/strict"
 import { describe, it } from "node:test"
 import {
   monthlyYield,
+  monthlyYieldSplit,
+  parseSharePercent,
   parseYieldPercent,
   requiredAucUsd,
+  retainedYieldPa,
   runRateAucUsd,
 } from "./auc"
 import { DEFAULT_NZD_PER_USD, buildSchedule, summarize } from "./projection"
@@ -52,6 +55,48 @@ describe("stablecoin AUC", () => {
       requiredAucUsd(now?.totalCumulativeUsd ?? 0, yieldPa),
       requiredAucUsd(september?.totalCumulativeUsd ?? 0, yieldPa),
     )
+  })
+})
+
+describe("counterparty yield share", () => {
+  const yieldPa = 0.025
+  const summary = summarize(buildSchedule())
+
+  it("leaves the full yield with NewMoney when nothing is shared", () => {
+    assert.equal(retainedYieldPa(yieldPa, 0), yieldPa)
+    assert.equal(requiredAucUsd(summary.overdueUsd, yieldPa, 0), 200_000)
+    const split = monthlyYieldSplit(200_000, yieldPa, 0)
+    assert.equal(split.incentive, 0)
+    assert.equal(split.retained, summary.overdueUsd / 12)
+  })
+
+  it("increases AUC so the yield NewMoney keeps still covers the shortfall", () => {
+    const share = 0.2
+    assert.ok(Math.abs(retainedYieldPa(yieldPa, share) - 0.02) < 1e-12)
+    const today = requiredAucUsd(summary.overdueUsd, yieldPa, share)
+    assert.equal(Math.round(today), 250_000)
+    assert.equal(Math.round(today * DEFAULT_NZD_PER_USD), 441_000)
+    assert.equal(Math.round(requiredAucUsd(summary.horizonUsd, yieldPa, share)), 1_930_000)
+
+    const split = monthlyYieldSplit(today, yieldPa, share)
+    assert.ok(Math.abs(split.retained - summary.overdueUsd / 12) < 1e-6)
+    assert.ok(Math.abs(split.incentive - split.gross * share) < 1e-6)
+    assert.ok(split.incentive > 0)
+    assert.ok(today > requiredAucUsd(summary.overdueUsd, yieldPa, 0))
+
+    assert.equal(Math.round(runRateAucUsd(summary.monthlyTotalUsd, yieldPa, share)), 1_680_000)
+    assert.equal(requiredAucUsd(summary.overdueUsd, yieldPa, 0.5), 400_000)
+  })
+})
+
+describe("parseSharePercent", () => {
+  it("accepts zero and rejects a share that would leave NewMoney no yield", () => {
+    assert.equal(parseSharePercent("0"), 0)
+    assert.equal(parseSharePercent("20"), 0.2)
+    assert.ok(Math.abs((parseSharePercent("99.9") ?? 0) - 0.999) < 1e-12)
+    assert.equal(parseSharePercent(""), null)
+    assert.equal(parseSharePercent("100"), null)
+    assert.equal(parseSharePercent("-5"), null)
   })
 })
 

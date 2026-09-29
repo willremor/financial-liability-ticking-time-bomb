@@ -400,9 +400,14 @@ export function Dashboard({ schedule }: { schedule: ScheduleRow[] }) {
               monthly parts, with no compounding.
             </li>
             <li>
-              Required AUC in a month is the cumulative shortfall divided by that annual yield, so a
-              year of earnings matches what is owed. A separate balance is the custody whose monthly
-              yield equals the $2,800 stack.
+              A share of that yield can be paid to counterparties as an incentive. The opening share is
+              0%. NewMoney’s monthly yield is what remains.
+            </li>
+            <li>
+              Required AUC is the cumulative shortfall divided by the yield NewMoney keeps. Raising the
+              counterparty share lowers that receipt and increases the custody needed to cover the same
+              liability. A separate balance is the custody whose retained monthly yield equals the $2,800
+              stack.
             </li>
           </ul>
         </section>

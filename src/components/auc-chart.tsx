@@ -21,8 +21,10 @@ type ChartPoint = ScheduleRow & {
   auc: number
   aucUsd: number
   aucNzd: number
-  yieldUsd: number
-  yieldNzd: number
+  keptUsd: number
+  keptNzd: number
+  incentiveUsd: number
+  incentiveNzd: number
   shortfallNzd: number
 }
 
@@ -115,10 +117,17 @@ function ChartTooltip({
           </dd>
         </div>
         <div className="flex justify-between gap-6 border-t border-border pt-1.5">
-          <dt>Monthly yield</dt>
+          <dt>NewMoney keeps</dt>
           <dd className="text-right font-mono">
-            {formatMoney(point.yieldNzd, "NZD")}
-            <span className="block text-muted-foreground">{formatMoney(point.yieldUsd, "USD")}</span>
+            {formatMoney(point.keptNzd, "NZD")}
+            <span className="block text-muted-foreground">{formatMoney(point.keptUsd, "USD")}</span>
+          </dd>
+        </div>
+        <div className="flex justify-between gap-6">
+          <dt>Counterparties</dt>
+          <dd className="text-right font-mono">
+            {formatMoney(point.incentiveNzd, "NZD")}
+            <span className="block text-muted-foreground">{formatMoney(point.incentiveUsd, "USD")}</span>
           </dd>
         </div>
       </dl>
