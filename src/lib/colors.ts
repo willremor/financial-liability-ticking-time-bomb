@@ -1,0 +1,6 @@
+export const ink = "#1a1714"
+export const brale = "#234e45"
+export const otherTech = "#c4922e"
+export const fuse = "#b4331a"
+export const paper = "#f6f1e7"
+export const grid = "#e4d9c8"
